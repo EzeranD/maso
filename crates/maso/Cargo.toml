@@ -1,0 +1,13 @@
+[package]
+name = "maso"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[features]
+ffmpeg = ["maso-ffmpeg"]
+
+[dependencies]
+maso-ffmpeg = { path = "../maso-ffmpeg", optional = true }
