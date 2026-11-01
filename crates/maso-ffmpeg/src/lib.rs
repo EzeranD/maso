@@ -3,5 +3,6 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 pub mod codec;
+pub mod format;
 pub mod util;
 pub mod video;

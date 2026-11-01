@@ -3,9 +3,12 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 pub mod buffer;
+pub mod dictionary;
 pub mod frame;
 pub mod hardware;
+pub mod media;
 pub mod pixel;
+pub mod rational;
 
 use std::{
     any::{Any, TypeId},
@@ -15,6 +18,8 @@ use std::{
 };
 
 use ffmsys::{AV_ERROR_MAX_STRING_SIZE, av_strerror};
+pub use media::MediaType;
+pub use rational::{Rational, Rescale};
 
 pub struct Extensions {
     map: HashMap<TypeId, Box<dyn Any + Send + Sync>>,

@@ -11,8 +11,10 @@ use std::{
 use ffmsys::{
     AVCodec, AVCodecID, av_codec_is_decoder, av_codec_is_encoder, av_codec_iterate,
     avcodec_find_decoder, avcodec_find_decoder_by_name, avcodec_find_encoder,
-    avcodec_find_encoder_by_name,
+    avcodec_find_encoder_by_name, avcodec_get_type,
 };
+
+use crate::util::MediaType;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Codec {
@@ -102,6 +104,13 @@ impl Codec {
 }
 
 impl CodecId {
+    pub fn media_type(&self) -> MediaType {
+        unsafe {
+            let media_type = avcodec_get_type(self.0);
+            media_type.into()
+        }
+    }
+
     pub fn from_raw(id: AVCodecID) -> Self {
         Self(id)
     }

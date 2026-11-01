@@ -86,9 +86,8 @@ impl Inner {
 
     pub(super) fn open(&mut self, codec: Option<&Codec>) -> Result<(), Error> {
         unsafe {
-            let ptr = self.as_mut_ptr();
             let res = avcodec_open2(
-                ptr,
+                self.as_mut_ptr(),
                 codec.map_or(ptr::null(), Codec::as_ptr),
                 ptr::null_mut(),
             );
