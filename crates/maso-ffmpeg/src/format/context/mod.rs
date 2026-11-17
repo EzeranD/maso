@@ -10,9 +10,12 @@ use crate::{
         chapter::{Chapter, ChapterIter, ChapterIterMut, ChapterMut},
         context::inner::Inner,
         program::{ProgramIter, ProgramIterMut},
-        stream::{Stream, StreamIter, StreamIterMut, StreamMut},
+        stream::{
+            Kind as StreamKind, Stream, StreamIter, StreamIterMut, StreamMut, StreamType,
+            StreamTypeMut,
+        },
     },
-    util::{MediaType, dictionary::DictionaryRef},
+    util::dictionary::DictionaryRef,
 };
 
 pub(super) mod inner;
@@ -46,21 +49,21 @@ impl<State, Mode> Context<State, Mode> {
         StreamIter::new(&self.inner)
     }
 
-    pub fn stream(&self, index: usize) -> Option<Stream<'_>> {
-        self.inner.stream(index)
+    pub fn stream(&self, index: usize) -> Option<StreamType<'_>> {
+        self.inner.stream(index).map(StreamType::from)
     }
 
-    pub fn best_stream(
+    pub fn best_stream<K: StreamKind>(
         &self,
-        media_type: MediaType,
         wanted: Option<i32>,
         related: Option<i32>,
-    ) -> Option<Stream<'_>> {
-        self.inner.best_stream(media_type, wanted, related)
+    ) -> Option<Stream<'_, K>> {
+        let stream = self.inner.best_stream(K::TYPE, wanted, related)?;
+        StreamType::from(stream).get::<K>()
     }
 
-    pub fn default_stream(&self) -> Option<Stream<'_>> {
-        self.inner.default_stream()
+    pub fn default_stream(&self) -> Option<StreamType<'_>> {
+        self.inner.default_stream().map(StreamType::from)
     }
 
     pub fn chapters(&self) -> ChapterIter<'_> {
@@ -99,21 +102,21 @@ impl<State, Mode> Context<State, Mode> {
         StreamIterMut::new(&mut self.inner)
     }
 
-    pub fn stream_mut(&mut self, index: usize) -> Option<StreamMut<'_>> {
-        self.inner.stream_mut(index)
+    pub fn stream_mut(&mut self, index: usize) -> Option<StreamTypeMut<'_>> {
+        self.inner.stream_mut(index).map(StreamTypeMut::from)
     }
 
-    pub fn best_stream_mut(
+    pub fn best_stream_mut<K: StreamKind>(
         &mut self,
-        media_type: MediaType,
         wanted: Option<i32>,
         related: Option<i32>,
-    ) -> Option<StreamMut<'_>> {
-        self.inner.best_stream_mut(media_type, wanted, related)
+    ) -> Option<StreamMut<'_, K>> {
+        let stream = self.inner.best_stream_mut(K::TYPE, wanted, related)?;
+        StreamTypeMut::from(stream).get::<K>()
     }
 
-    pub fn default_stream_mut(&mut self) -> Option<StreamMut<'_>> {
-        self.inner.default_stream_mut()
+    pub fn default_stream_mut(&mut self) -> Option<StreamTypeMut<'_>> {
+        self.inner.default_stream_mut().map(StreamTypeMut::from)
     }
 
     pub fn chapters_mut(&mut self) -> ChapterIterMut<'_> {

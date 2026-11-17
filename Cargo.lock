@@ -128,7 +128,9 @@ dependencies = [
 name = "maso"
 version = "0.1.0"
 dependencies = [
+ "ffmpeg-sys-next",
  "maso-ffmpeg",
+ "snafu",
 ]
 
 [[package]]

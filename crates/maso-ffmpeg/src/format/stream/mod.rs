@@ -23,22 +23,43 @@ use crate::{
     codec::parameters::ParametersRef,
     format::context::inner::Inner as ContextInner,
     util::{
-        Rational,
+        MediaType, Rational,
         dictionary::{DictionaryMut, DictionaryRef},
+        media::{Attachment, Audio, Data, Kind as MediaKind, Subtitle, Unknown, Video},
     },
 };
 
 mod inner;
 use inner::Inner;
 
-pub struct Stream<'a> {
+pub struct Stream<'a, K: MediaKind = Unknown> {
     inner: Inner,
     context: &'a ContextInner,
+    _kind: PhantomData<K>,
 }
 
-pub struct StreamMut<'a> {
+pub struct StreamMut<'a, K: MediaKind = Unknown> {
     inner: Inner,
     context: PhantomData<&'a mut ContextInner>,
+    _kind: PhantomData<K>,
+}
+
+pub enum StreamType<'a> {
+    Unknown(Stream<'a, Unknown>),
+    Video(Stream<'a, Video>),
+    Audio(Stream<'a, Audio>),
+    Data(Stream<'a, Data>),
+    Subtitle(Stream<'a, Subtitle>),
+    Attachment(Stream<'a, Attachment>),
+}
+
+pub enum StreamTypeMut<'a> {
+    Unknown(StreamMut<'a, Unknown>),
+    Video(StreamMut<'a, Video>),
+    Audio(StreamMut<'a, Audio>),
+    Data(StreamMut<'a, Data>),
+    Subtitle(StreamMut<'a, Subtitle>),
+    Attachment(StreamMut<'a, Attachment>),
 }
 
 pub struct StreamIter<'a> {
@@ -84,7 +105,20 @@ bitflags! {
     }
 }
 
-impl<'a> Stream<'a> {
+pub trait Kind: MediaKind + Sized {
+    fn get(stream: StreamType<'_>) -> Option<Stream<'_, Self>>;
+    fn get_mut(stream: StreamTypeMut<'_>) -> Option<StreamMut<'_, Self>>;
+}
+
+impl<'a, K: MediaKind> Stream<'a, K> {
+    fn with_kind<N: MediaKind>(self) -> Stream<'a, N> {
+        Stream {
+            inner: self.inner,
+            context: self.context,
+            _kind: PhantomData,
+        }
+    }
+
     pub fn index(&self) -> i32 {
         self.inner.index()
     }
@@ -93,7 +127,7 @@ impl<'a> Stream<'a> {
         self.inner.id()
     }
 
-    pub fn parameters(&self) -> ParametersRef<'a> {
+    pub fn parameters(&self) -> ParametersRef<'a, K> {
         self.inner.parameters(self.context)
     }
 
@@ -147,11 +181,12 @@ impl<'a> Stream<'a> {
     }
 }
 
-impl<'a> Stream<'a> {
+impl<'a, K: MediaKind> Stream<'a, K> {
     pub(crate) unsafe fn from_ptr(ptr: *mut AVStream, context: &'a ContextInner) -> Option<Self> {
         Some(Self {
             inner: unsafe { Inner::from_ptr(ptr)? },
             context,
+            _kind: PhantomData,
         })
     }
 
@@ -160,10 +195,18 @@ impl<'a> Stream<'a> {
     }
 }
 
-unsafe impl Send for Stream<'_> {}
-unsafe impl Sync for Stream<'_> {}
+unsafe impl<K: MediaKind> Send for Stream<'_, K> {}
+unsafe impl<K: MediaKind> Sync for Stream<'_, K> {}
 
-impl StreamMut<'_> {
+impl<'a, K: MediaKind> StreamMut<'a, K> {
+    fn with_kind<N: MediaKind>(self) -> StreamMut<'a, N> {
+        StreamMut {
+            inner: self.inner,
+            context: self.context,
+            _kind: PhantomData,
+        }
+    }
+
     pub fn index(&self) -> i32 {
         self.inner.index()
     }
@@ -172,7 +215,7 @@ impl StreamMut<'_> {
         self.inner.id()
     }
 
-    pub fn parameters(&self) -> ParametersRef<'_> {
+    pub fn parameters(&self) -> ParametersRef<'_, K> {
         self.inner.parameters(&self.inner)
     }
 
@@ -238,11 +281,15 @@ impl StreamMut<'_> {
     }
 }
 
-impl<'a> StreamMut<'a> {
-    pub(crate) unsafe fn from_ptr(ptr: *mut AVStream, _context: &'a mut ContextInner) -> Option<Self> {
+impl<'a, K: MediaKind> StreamMut<'a, K> {
+    pub(crate) unsafe fn from_ptr(
+        ptr: *mut AVStream,
+        _context: &'a mut ContextInner,
+    ) -> Option<Self> {
         Some(Self {
             inner: unsafe { Inner::from_ptr(ptr)? },
             context: PhantomData,
+            _kind: PhantomData,
         })
     }
 
@@ -255,8 +302,46 @@ impl<'a> StreamMut<'a> {
     }
 }
 
-unsafe impl Send for StreamMut<'_> {}
-unsafe impl Sync for StreamMut<'_> {}
+unsafe impl<K: MediaKind> Send for StreamMut<'_, K> {}
+unsafe impl<K: MediaKind> Sync for StreamMut<'_, K> {}
+
+impl<'a> StreamType<'a> {
+    pub fn get<K: Kind>(self) -> Option<Stream<'a, K>> {
+        K::get(self)
+    }
+}
+
+impl<'a> From<Stream<'a>> for StreamType<'a> {
+    fn from(stream: Stream<'a>) -> Self {
+        match stream.parameters().media_type() {
+            MediaType::Unknown => Self::Unknown(stream.with_kind()),
+            MediaType::Video => Self::Video(stream.with_kind()),
+            MediaType::Audio => Self::Audio(stream.with_kind()),
+            MediaType::Data => Self::Data(stream.with_kind()),
+            MediaType::Subtitle => Self::Subtitle(stream.with_kind()),
+            MediaType::Attachment => Self::Attachment(stream.with_kind()),
+        }
+    }
+}
+
+impl<'a> StreamTypeMut<'a> {
+    pub fn get<K: Kind>(self) -> Option<StreamMut<'a, K>> {
+        K::get_mut(self)
+    }
+}
+
+impl<'a> From<StreamMut<'a>> for StreamTypeMut<'a> {
+    fn from(stream: StreamMut<'a>) -> Self {
+        match stream.parameters().media_type() {
+            MediaType::Unknown => Self::Unknown(stream.with_kind()),
+            MediaType::Video => Self::Video(stream.with_kind()),
+            MediaType::Audio => Self::Audio(stream.with_kind()),
+            MediaType::Data => Self::Data(stream.with_kind()),
+            MediaType::Subtitle => Self::Subtitle(stream.with_kind()),
+            MediaType::Attachment => Self::Attachment(stream.with_kind()),
+        }
+    }
+}
 
 impl<'a> StreamIter<'a> {
     pub(crate) fn new(context: &'a ContextInner) -> Self {
@@ -265,7 +350,7 @@ impl<'a> StreamIter<'a> {
 }
 
 impl<'a> Iterator for StreamIter<'a> {
-    type Item = Stream<'a>;
+    type Item = StreamType<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let context = unsafe { &*self.context.as_ptr() };
@@ -274,7 +359,7 @@ impl<'a> Iterator for StreamIter<'a> {
         }
         let ptr = unsafe { *context.streams.add(self.index) };
         self.index += 1;
-        unsafe { Stream::from_ptr(ptr, self.context) }
+        unsafe { Stream::from_ptr(ptr, self.context).map(StreamType::from) }
     }
 }
 
@@ -285,7 +370,7 @@ impl<'a> StreamIterMut<'a> {
 }
 
 impl<'a> Iterator for StreamIterMut<'a> {
-    type Item = StreamMut<'a>;
+    type Item = StreamTypeMut<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let context = unsafe { &*self.context.as_ptr() };
@@ -294,9 +379,25 @@ impl<'a> Iterator for StreamIterMut<'a> {
         }
         let ptr = unsafe { *context.streams.add(self.index) };
         self.index += 1;
-        Some(StreamMut {
+        Some(StreamTypeMut::from(StreamMut {
             inner: unsafe { Inner::from_ptr(ptr)? },
             context: PhantomData,
-        })
+            _kind: PhantomData,
+        }))
     }
 }
+
+macro_rules! stream_media {
+    ($($kind:ident),* $(,)?) => {$ (
+        impl Kind for $kind {
+            fn get(stream: StreamType<'_>) -> Option<Stream<'_, Self>> {
+                if let StreamType::$kind(stream) = stream { Some(stream) } else { None }
+            }
+            fn get_mut(stream: StreamTypeMut<'_>) -> Option<StreamMut<'_, Self>> {
+                if let StreamTypeMut::$kind(stream) = stream { Some(stream) } else { None }
+            }
+        }
+    )*};
+}
+
+stream_media!(Unknown, Video, Audio, Data, Subtitle, Attachment);

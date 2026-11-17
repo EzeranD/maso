@@ -4,3 +4,6 @@
 
 #[cfg(feature = "ffmpeg")]
 pub use maso_ffmpeg as ffmpeg;
+
+#[cfg(feature = "ffmpeg")]
+pub mod video;

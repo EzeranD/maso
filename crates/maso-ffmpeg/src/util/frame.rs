@@ -23,7 +23,8 @@ use ffmsys::{
 use ffmsys::{av_frame_ref, av_frame_unref};
 use snafu::{OptionExt, ResultExt, Snafu};
 
-use crate::util::{Code, buffer::BufferRef, pixel::PixelFormat};
+pub use crate::util::media::{Audio, Video};
+use crate::util::{Code, buffer::BufferRef, media::Kind as MediaKind, pixel::PixelFormat};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -43,13 +44,12 @@ pub enum Error {
     ApplyCrop { source: Code },
 }
 
-pub struct Frame<Kind> {
+pub struct Frame<K: Kind> {
     ptr: NonNull<AVFrame>,
-    _kind: PhantomData<Kind>,
+    _kind: PhantomData<K>,
 }
 
-pub struct Video;
-pub struct Audio;
+pub trait Kind: MediaKind + private::Sealed {}
 
 pub struct SideData<'a> {
     ptr: NonNull<AVFrameSideData>,
@@ -100,7 +100,7 @@ impl Frame<Video> {
     }
 }
 
-impl<Kind> Frame<Kind> {
+impl<K: Kind> Frame<K> {
     pub fn new() -> Result<Self, Error> {
         unsafe {
             let ptr = av_frame_alloc();
@@ -138,7 +138,7 @@ impl<Kind> Frame<Kind> {
         }
     }
 
-    pub fn clone_from(&mut self, source: &Frame<Kind>) -> Result<(), Error> {
+    pub fn clone_from(&mut self, source: &Frame<K>) -> Result<(), Error> {
         #[cfg(ffmpeg_6_1)]
         unsafe {
             let res = av_frame_replace(self.as_mut_ptr(), source.as_ptr());
@@ -173,7 +173,7 @@ impl<Kind> Frame<Kind> {
         }
     }
 
-    pub fn copy_from(&mut self, source: &Frame<Kind>) -> Result<(), Error> {
+    pub fn copy_from(&mut self, source: &Frame<K>) -> Result<(), Error> {
         self.make_writable()?;
         unsafe {
             let res = av_frame_copy(self.as_mut_ptr(), source.as_ptr());
@@ -185,7 +185,7 @@ impl<Kind> Frame<Kind> {
     }
 }
 
-impl<Kind> Frame<Kind> {
+impl<K: Kind> Frame<K> {
     pub unsafe fn from_ptr(ptr: *mut AVFrame) -> Option<Self> {
         let ptr = NonNull::new(ptr)?;
         Some(Self {
@@ -203,16 +203,16 @@ impl<Kind> Frame<Kind> {
     }
 }
 
-unsafe impl<Kind> Send for Frame<Kind> {}
-unsafe impl<Kind> Sync for Frame<Kind> {}
+unsafe impl<K: Kind> Send for Frame<K> {}
+unsafe impl<K: Kind> Sync for Frame<K> {}
 
-impl<Kind> Clone for Frame<Kind> {
+impl<K: Kind> Clone for Frame<K> {
     fn clone(&self) -> Self {
         self.try_clone().expect("failed to clone frame")
     }
 }
 
-impl<Kind> Drop for Frame<Kind> {
+impl<K: Kind> Drop for Frame<K> {
     fn drop(&mut self) {
         let mut ptr = self.as_mut_ptr();
         unsafe {
@@ -257,4 +257,14 @@ impl fmt::Display for SideDataType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.name())
     }
+}
+
+impl Kind for Audio {}
+impl Kind for Video {}
+
+mod private {
+    pub trait Sealed {}
+
+    impl Sealed for super::Audio {}
+    impl Sealed for super::Video {}
 }

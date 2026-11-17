@@ -19,7 +19,7 @@ use snafu::{OptionExt, ResultExt};
 use super::{GetFormatContext, GetFormatFn};
 use crate::{
     codec::{
-        Codec,
+        Codec, Mode,
         context::{
             Discard,
             error::{
@@ -34,8 +34,9 @@ use crate::{
     util::{
         Code, Extensions,
         buffer::BufferRef,
-        frame::Frame,
+        frame::{Frame, Kind as FrameKind},
         hardware::{DeviceContext, FramesContext, Initialized},
+        media::Kind,
         pixel::PixelFormat,
     },
 };
@@ -52,7 +53,7 @@ bitflags! {
 }
 
 impl Inner {
-    pub(super) fn new(codec: Option<&Codec>) -> Result<Self, Error> {
+    pub(super) fn new<M: Mode, K: Kind>(codec: Option<&Codec<M, K>>) -> Result<Self, Error> {
         unsafe {
             let codec_ptr = codec.map_or(ptr::null(), Codec::as_ptr);
             let ptr = avcodec_alloc_context3(codec_ptr);
@@ -62,9 +63,9 @@ impl Inner {
         }
     }
 
-    pub(super) fn from_parameters(
-        parameters: &Parameters,
-        codec: Option<&Codec>,
+    pub(super) fn from_parameters<M: Mode, K: Kind>(
+        parameters: &Parameters<K>,
+        codec: Option<&Codec<M, K>>,
     ) -> Result<Self, Error> {
         unsafe {
             let mut ctx = Self::new(codec)?;
@@ -84,7 +85,10 @@ impl Inner {
         }
     }
 
-    pub(super) fn open(&mut self, codec: Option<&Codec>) -> Result<(), Error> {
+    pub(super) fn open<M: Mode, K: Kind>(
+        &mut self,
+        codec: Option<&Codec<M, K>>,
+    ) -> Result<(), Error> {
         unsafe {
             let res = avcodec_open2(
                 self.as_mut_ptr(),
@@ -130,9 +134,9 @@ impl Inner {
         }
     }
 
-    pub(super) fn send_frame<Kind>(
+    pub(super) fn send_frame<K: FrameKind>(
         &mut self,
-        frame: Option<&Frame<Kind>>,
+        frame: Option<&Frame<K>>,
     ) -> Result<(), SendFrameError> {
         unsafe {
             let res =
@@ -154,9 +158,9 @@ impl Inner {
         }
     }
 
-    pub(super) fn receive_frame<Kind>(
+    pub(super) fn receive_frame<K: FrameKind>(
         &mut self,
-        frame: &mut Frame<Kind>,
+        frame: &mut Frame<K>,
         flags: Option<ReceiveFrameFlags>,
     ) -> Result<(), ReceiveFrameError> {
         #[cfg(ffmpeg_9_0)]
@@ -196,7 +200,7 @@ impl Inner {
         }
     }
 
-    pub(super) fn codec(&self) -> Option<Codec> {
+    pub(super) fn codec<M: Mode, K: Kind>(&self) -> Option<Codec<M, K>> {
         unsafe {
             let ptr = self.ptr.as_ref().codec;
             Codec::from_ptr(ptr)

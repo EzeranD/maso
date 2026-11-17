@@ -7,12 +7,10 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
-use snafu::Snafu;
-
-pub use crate::codec::context::{Discard, ReceiveFrameError, SendPacketError};
-use crate::{
+pub use maso_ffmpeg::codec::context::{Discard, ReceiveFrameError, SendPacketError};
+use maso_ffmpeg::{
     codec::{
-        Codec,
+        Codec, Decoder,
         context::{self, Opened},
         packet::Packet,
         parameters::Parameters,
@@ -22,8 +20,10 @@ use crate::{
         hardware::{self, DeviceContext, FramesContext},
         pixel::PixelFormat,
     },
-    video::hardware::Candidate,
 };
+use snafu::Snafu;
+
+use super::hardware::Candidate;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -34,12 +34,12 @@ pub enum Error {
 }
 
 pub struct Context {
-    ctx: context::Context<Opened>,
+    ctx: context::Context<Opened, Decoder, Video>,
     hw_initialized: Arc<AtomicBool>,
 }
 
 impl Context {
-    pub fn new(parameters: &Parameters, hw: Option<&Candidate>) -> Result<Self, Error> {
+    pub fn new(parameters: &Parameters<Video>, hw: Option<&Candidate>) -> Result<Self, Error> {
         let hw_initialized = Arc::new(AtomicBool::new(false));
 
         let codec = hw

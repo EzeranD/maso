@@ -12,8 +12,11 @@ use snafu::{OptionExt, ResultExt};
 
 use super::{AllocateSnafu, CopySnafu, Error, FromContextSnafu};
 use crate::{
-    codec::{CodecId, context::Context},
-    util::{MediaType, Rational},
+    codec::{
+        CodecId,
+        context::{Context, Mode},
+    },
+    util::{MediaType, Rational, media::Kind},
 };
 
 pub(super) struct Inner {
@@ -25,13 +28,16 @@ impl Inner {
         unsafe { Self::from_ptr(avcodec_parameters_alloc()).context(AllocateSnafu) }
     }
 
-    pub(super) fn from_context<State>(context: &Context<State>) -> Result<Self, Error> {
+    pub(super) fn from_context<State, M: Mode, K: Kind>(
+        context: &Context<State, M, K>,
+    ) -> Result<Self, Error> {
         let mut parameters = Self::new()?;
         let res =
             unsafe { avcodec_parameters_from_context(parameters.as_mut_ptr(), context.as_ptr()) };
         if res < 0 {
             return Err(res.into()).context(FromContextSnafu);
         }
+        unsafe { parameters.ptr.as_mut().codec_type = K::TYPE.into() };
         Ok(parameters)
     }
 

@@ -5,20 +5,22 @@
 use ffmsys::AVHWDeviceType::{
     AV_HWDEVICE_TYPE_D3D11VA, AV_HWDEVICE_TYPE_VAAPI, AV_HWDEVICE_TYPE_VULKAN,
 };
-
-use crate::codec::{
-    Codec,
-    hw_config::{HwConfig, Methods},
-    parameters::Parameters,
+use maso_ffmpeg::{
+    codec::{
+        Codec, CodecMode, Decoder,
+        hw_config::{HwConfig, Methods},
+        parameters::Parameters,
+    },
+    util::media::Video,
 };
 
 pub struct Candidate {
-    pub codec: Codec,
+    pub codec: Codec<Decoder, Video>,
     pub config: HwConfig,
 }
 
 impl Candidate {
-    pub fn from_parameters(parameters: &Parameters) -> Vec<Self> {
+    pub fn from_parameters(parameters: &Parameters<Video>) -> Vec<Self> {
         let mut candidates = Vec::new();
 
         #[cfg(not(any(target_os = "linux", target_os = "windows")))]
@@ -26,7 +28,10 @@ impl Candidate {
 
         let id = parameters.codec_id();
 
-        for codec in Codec::iter().filter(|c| c.id() == id && c.is_decoder()) {
+        for codec in Codec::iter()
+            .filter_map(CodecMode::get)
+            .filter(|c| c.id() == id)
+        {
             for config in HwConfig::from_codec(codec) {
                 if !config.methods().contains(Methods::HW_DEVICE_CTX) {
                     continue;

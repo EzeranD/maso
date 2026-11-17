@@ -4,18 +4,18 @@
 
 use std::mem;
 
-use snafu::Snafu;
-
-use crate::{
+use maso_ffmpeg::{
     codec::{packet::Packet, parameters::Parameters},
     util::{
         Code,
         frame::{Frame, Video},
     },
-    video::{
-        context::{self, Context, Discard, SendPacketError},
-        hardware::Candidate,
-    },
+};
+use snafu::Snafu;
+
+use super::{
+    context::{self, Context, Discard, SendPacketError},
+    hardware::Candidate,
 };
 
 #[derive(Debug, Snafu)]
@@ -34,7 +34,7 @@ pub enum ReceiveFrameError {
 
 pub struct Decoder {
     context: Context,
-    parameters: Parameters,
+    parameters: Parameters<Video>,
     discard: Option<Discard>,
     mode: Mode,
     phase: Phase,
@@ -68,7 +68,7 @@ enum ProbeOutcome {
 }
 
 fn select_context(
-    parameters: &Parameters,
+    parameters: &Parameters<Video>,
     mut candidates: Vec<Candidate>,
 ) -> Result<(Context, Mode), context::Error> {
     while let Some(candidate) = candidates.pop() {
@@ -82,7 +82,7 @@ fn select_context(
 }
 
 impl Decoder {
-    pub fn new(parameters: Parameters, hardware: bool) -> Result<Self, context::Error> {
+    pub fn new(parameters: Parameters<Video>, hardware: bool) -> Result<Self, context::Error> {
         let candidates = if hardware {
             Candidate::from_parameters(&parameters)
         } else {

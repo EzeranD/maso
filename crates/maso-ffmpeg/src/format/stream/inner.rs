@@ -12,6 +12,7 @@ use crate::{
     util::{
         Rational,
         dictionary::{DictionaryMut, DictionaryRef},
+        media::Kind,
     },
 };
 
@@ -28,7 +29,7 @@ impl Inner {
         unsafe { self.ptr.as_ref().id }
     }
 
-    pub(super) fn parameters<'a, T>(&self, context: &'a T) -> ParametersRef<'a> {
+    pub(super) fn parameters<'a, K: Kind, T>(&self, context: &'a T) -> ParametersRef<'a, K> {
         let ptr = unsafe { self.ptr.as_ref().codecpar };
         unsafe { ParametersRef::from_ptr(ptr, context).expect("stream must have parameters") }
     }

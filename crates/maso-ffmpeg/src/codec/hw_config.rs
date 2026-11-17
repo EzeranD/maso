@@ -12,8 +12,8 @@ use ffmsys::{
 };
 
 use crate::{
-    codec::Codec,
-    util::{hardware::device::DeviceType, pixel::PixelFormat},
+    codec::{Codec, Mode},
+    util::{hardware::device::DeviceType, media::Video, pixel::PixelFormat},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -31,7 +31,7 @@ bitflags! {
 }
 
 impl HwConfig {
-    pub fn from_codec(codec: Codec) -> impl Iterator<Item = Self> {
+    pub fn from_codec<M: Mode>(codec: Codec<M, Video>) -> impl Iterator<Item = Self> {
         let mut index = 0;
         std::iter::from_fn(move || unsafe {
             let ptr = avcodec_get_hw_config(codec.as_ptr(), index);

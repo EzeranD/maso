@@ -14,10 +14,11 @@ use ffmsys::{AVCodecContext, AVPixelFormat};
 
 use super::inner::Inner;
 use crate::{
-    codec::Codec,
+    codec::{Codec, Decoder},
     util::{
         Extensions,
         hardware::{DeviceContext, FramesContext, Initialized},
+        media::Video,
         pixel::PixelFormat,
     },
 };
@@ -36,7 +37,7 @@ impl GetFormatContext<'_> {
         self.formats
     }
 
-    pub fn codec(&self) -> Option<Codec> {
+    pub fn codec(&self) -> Option<Codec<Decoder, Video>> {
         self.inner.codec()
     }
 

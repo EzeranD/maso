@@ -8,8 +8,14 @@ use ffmsys::AVCodecParameters;
 use snafu::Snafu;
 
 use crate::{
-    codec::{CodecId, context::Context},
-    util::{Code, MediaType, Rational},
+    codec::{
+        CodecId,
+        context::{Context, Mode},
+    },
+    util::{
+        Code, MediaType, Rational,
+        media::{Audio, Kind, Unknown, Video},
+    },
 };
 
 mod inner;
@@ -25,31 +31,37 @@ pub enum Error {
     Copy { source: Code },
 }
 
-pub struct Parameters {
+pub struct Parameters<K: Kind = Unknown> {
     inner: Inner,
+    _kind: PhantomData<K>,
 }
 
-pub struct ParametersRef<'a> {
+pub struct ParametersRef<'a, K: Kind = Unknown> {
     inner: ManuallyDrop<Inner>,
-    owner: PhantomData<&'a ()>,
+    owner: PhantomData<(&'a (), K)>,
 }
 
-impl Parameters {
+impl Parameters<Unknown> {
     pub fn new() -> Result<Self, Error> {
         Ok(Self {
             inner: Inner::new()?,
+            _kind: PhantomData,
         })
     }
+}
 
-    pub fn from_context<State>(context: &Context<State>) -> Result<Self, Error> {
+impl<K: Kind> Parameters<K> {
+    pub fn from_context<State, M: Mode>(context: &Context<State, M, K>) -> Result<Self, Error> {
         Ok(Self {
             inner: Inner::from_context(context)?,
+            _kind: PhantomData,
         })
     }
 
     pub fn try_clone(&self) -> Result<Self, Error> {
         Ok(Self {
             inner: self.inner.try_clone()?,
+            _kind: PhantomData,
         })
     }
 
@@ -89,6 +101,23 @@ impl Parameters {
         self.inner.level()
     }
 
+    pub unsafe fn from_ptr(ptr: *mut AVCodecParameters) -> Option<Self> {
+        Some(Self {
+            inner: unsafe { Inner::from_ptr(ptr)? },
+            _kind: PhantomData,
+        })
+    }
+
+    pub fn as_ptr(&self) -> *const AVCodecParameters {
+        self.inner.as_ptr()
+    }
+
+    pub(crate) fn as_mut_ptr(&mut self) -> *mut AVCodecParameters {
+        self.inner.as_mut_ptr()
+    }
+}
+
+impl Parameters<Video> {
     pub fn width(&self) -> i32 {
         self.inner.width()
     }
@@ -109,7 +138,9 @@ impl Parameters {
     pub fn video_delay(&self) -> i32 {
         self.inner.video_delay()
     }
+}
 
+impl Parameters<Audio> {
     pub fn sample_rate(&self) -> i32 {
         self.inner.sample_rate()
     }
@@ -133,30 +164,17 @@ impl Parameters {
     pub fn seek_preroll(&self) -> i32 {
         self.inner.seek_preroll()
     }
-
-    pub unsafe fn from_ptr(ptr: *mut AVCodecParameters) -> Option<Self> {
-        Some(Self {
-            inner: unsafe { Inner::from_ptr(ptr)? },
-        })
-    }
-
-    pub fn as_ptr(&self) -> *const AVCodecParameters {
-        self.inner.as_ptr()
-    }
-
-    pub(crate) fn as_mut_ptr(&mut self) -> *mut AVCodecParameters {
-        self.inner.as_mut_ptr()
-    }
 }
 
-impl<'a> ParametersRef<'a> {
-    pub fn try_to_owned(&self) -> Result<Parameters, Error> {
+impl<'a, K: Kind> ParametersRef<'a, K> {
+    pub fn try_to_owned(&self) -> Result<Parameters<K>, Error> {
         Ok(Parameters {
             inner: self.inner.try_clone()?,
+            _kind: PhantomData,
         })
     }
 
-    pub fn to_owned(&self) -> Parameters {
+    pub fn to_owned(&self) -> Parameters<K> {
         self.try_to_owned().expect("failed to clone parameters")
     }
 
@@ -196,6 +214,19 @@ impl<'a> ParametersRef<'a> {
         self.inner.level()
     }
 
+    pub(crate) unsafe fn from_ptr<T>(ptr: *mut AVCodecParameters, _owner: &'a T) -> Option<Self> {
+        Some(Self {
+            inner: ManuallyDrop::new(unsafe { Inner::from_ptr(ptr)? }),
+            owner: PhantomData,
+        })
+    }
+
+    pub fn as_ptr(&self) -> *const AVCodecParameters {
+        self.inner.as_ptr()
+    }
+}
+
+impl ParametersRef<'_, Video> {
     pub fn width(&self) -> i32 {
         self.inner.width()
     }
@@ -216,7 +247,9 @@ impl<'a> ParametersRef<'a> {
     pub fn video_delay(&self) -> i32 {
         self.inner.video_delay()
     }
+}
 
+impl ParametersRef<'_, Audio> {
     pub fn sample_rate(&self) -> i32 {
         self.inner.sample_rate()
     }
@@ -240,23 +273,12 @@ impl<'a> ParametersRef<'a> {
     pub fn seek_preroll(&self) -> i32 {
         self.inner.seek_preroll()
     }
-
-    pub(crate) unsafe fn from_ptr<T>(ptr: *mut AVCodecParameters, _owner: &'a T) -> Option<Self> {
-        Some(Self {
-            inner: ManuallyDrop::new(unsafe { Inner::from_ptr(ptr)? }),
-            owner: PhantomData,
-        })
-    }
-
-    pub fn as_ptr(&self) -> *const AVCodecParameters {
-        self.inner.as_ptr()
-    }
 }
 
-unsafe impl Send for Parameters {}
-unsafe impl Sync for Parameters {}
+unsafe impl<K: Kind> Send for Parameters<K> {}
+unsafe impl<K: Kind> Sync for Parameters<K> {}
 
-impl Clone for Parameters {
+impl<K: Kind> Clone for Parameters<K> {
     fn clone(&self) -> Self {
         self.try_clone().expect("failed to clone codec parameters")
     }

@@ -13,6 +13,17 @@ pub enum MediaType {
     Attachment,
 }
 
+pub trait Kind: private::Sealed {
+    const TYPE: MediaType;
+}
+
+pub struct Unknown;
+pub struct Video;
+pub struct Audio;
+pub struct Data;
+pub struct Subtitle;
+pub struct Attachment;
+
 impl From<AVMediaType> for MediaType {
     fn from(media_type: AVMediaType) -> Self {
         match media_type {
@@ -37,4 +48,39 @@ impl From<MediaType> for AVMediaType {
             MediaType::Attachment => Self::AVMEDIA_TYPE_ATTACHMENT,
         }
     }
+}
+
+impl Kind for Unknown {
+    const TYPE: MediaType = MediaType::Unknown;
+}
+
+impl Kind for Video {
+    const TYPE: MediaType = MediaType::Video;
+}
+
+impl Kind for Audio {
+    const TYPE: MediaType = MediaType::Audio;
+}
+
+impl Kind for Data {
+    const TYPE: MediaType = MediaType::Data;
+}
+
+impl Kind for Subtitle {
+    const TYPE: MediaType = MediaType::Subtitle;
+}
+
+impl Kind for Attachment {
+    const TYPE: MediaType = MediaType::Attachment;
+}
+
+mod private {
+    pub trait Sealed {}
+
+    impl Sealed for super::Unknown {}
+    impl Sealed for super::Video {}
+    impl Sealed for super::Audio {}
+    impl Sealed for super::Data {}
+    impl Sealed for super::Subtitle {}
+    impl Sealed for super::Attachment {}
 }

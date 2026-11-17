@@ -7,7 +7,9 @@ repository.workspace = true
 authors.workspace = true
 
 [features]
-ffmpeg = ["maso-ffmpeg"]
+ffmpeg = ["dep:ffmsys", "dep:maso-ffmpeg", "dep:snafu"]
 
 [dependencies]
+ffmsys = { workspace = true, optional = true }
 maso-ffmpeg = { path = "../maso-ffmpeg", optional = true }
+snafu = { workspace = true, optional = true }
